@@ -12,14 +12,14 @@ The project has two parallel objectives:
 ## Repository Structure
 
 ```text
-SPECIFICATION/
-CONCEPTUAL_LIBRARY/
-CASE_STUDIES/
-RESEARCH_LOG/
-ALGORITHMS/
-CORPORA/
-REFERENCES/
-TEMPLATES/
+specification/
+conceptual_library/
+case_studies/
+research_log/
+algorithms/
+corpora/
+references/
+templates/
 ```
 
 ### SPECIFICATION
