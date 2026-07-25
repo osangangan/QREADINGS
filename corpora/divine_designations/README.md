@@ -19,5 +19,5 @@ Each entry records a **designation event** defined by the 10 standard analytical
 
 ## Files
 
-- [`divine_designations_stage1_catalogue.md`](file:///c:/Users/Osangangan/Downloads/QR%20Antigravity%20Project/corpora/divine_designations/divine_designations_stage1_catalogue.md): Primary human-readable Markdown catalogue.
-- [`divine_designations_stage1_catalogue.json`](file:///c:/Users/Osangangan/Downloads/QR%20Antigravity%20Project/corpora/divine_designations/divine_designations_stage1_catalogue.json): Machine-readable dataset for quantitative analysis.
+- [`divine_designations_stage1_catalogue.md`](file:///c:/Users/Osangangan/Downloads/QREADINGS/corpora/divine_designations/divine_designations_stage1_catalogue.md): Primary human-readable Markdown catalogue.
+- [`divine_designations_stage1_catalogue.json`](file:///c:/Users/Osangangan/Downloads/QREADINGS/corpora/divine_designations/divine_designations_stage1_catalogue.json): Machine-readable dataset for quantitative analysis.
