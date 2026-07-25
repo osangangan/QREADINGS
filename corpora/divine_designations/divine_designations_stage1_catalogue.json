@@ -1,0 +1,86 @@
+[
+  {
+    "event_id": "DD-0001",
+    "verse": "1:1",
+    "arabic_clause": "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ",
+    "designation": "اللَّهِ",
+    "designation_scope": "Single lexical item",
+    "morphology": "Proper noun / Determinate",
+    "syntax": "Genitive object of preposition (isim)",
+    "immediate_context": "Praise/Invocation",
+    "pairing": ["الرَّحْمَٰنِ", "الرَّحِيمِ"],
+    "observational_notes": "First occurrence in corpus order; forms head of genitive construction modified by two epithets"
+  },
+  {
+    "event_id": "DD-0127",
+    "verse": "7:54",
+    "arabic_clause": "إِنَّ رَبَّكُمُ اللَّهُ الَّذِي خَلَقَ السَّمَاوَاتِ وَالأَرْضَ",
+    "designation": "رَبَّكُمُ",
+    "designation_scope": "Construct (iḍāfah) designation",
+    "morphology": "Noun + possessive pronoun (muḍāf + ḍamīr)",
+    "syntax": "Subject of Inna (ism Inna, accusative)",
+    "immediate_context": "Creation / Cosmology",
+    "pairing": ["اللَّهُ"],
+    "observational_notes": "Accusative subject construct heading cosmological declaration"
+  },
+  {
+    "event_id": "DD-0128",
+    "verse": "7:54",
+    "arabic_clause": "إِنَّ رَبَّكُمُ اللَّهُ الَّذِي خَلَقَ السَّمَاوَاتِ وَالأَرْضَ",
+    "designation": "اللَّهُ",
+    "designation_scope": "Single lexical item",
+    "morphology": "Proper noun / Determinate",
+    "syntax": "Predicate of Inna (khabar Inna, nominative)",
+    "immediate_context": "Creation / Cosmology",
+    "pairing": ["رَبَّكُمُ"],
+    "observational_notes": "Proper noun operating as predicate of Inna topic"
+  },
+  {
+    "event_id": "DD-0129",
+    "verse": "7:54",
+    "arabic_clause": "أَلا لَهُ الْخَلْقُ وَالأَمْرُ تَبَارَكَ اللَّهُ رَبُّ الْعَالَمِينَ",
+    "designation": "اللَّهُ",
+    "designation_scope": "Single lexical item",
+    "morphology": "Proper noun / Determinate",
+    "syntax": "Subject (fāʿil, nominative)",
+    "immediate_context": "Creation / Sovereignty",
+    "pairing": ["رَبُّ الْعَالَمِينَ"],
+    "observational_notes": "Subject of exaltation verb tabāraka"
+  },
+  {
+    "event_id": "DD-0130",
+    "verse": "7:54",
+    "arabic_clause": "تَبَارَكَ اللَّهُ رَبُّ الْعَالَمِينَ",
+    "designation": "رَبُّ الْعَالَمِينَ",
+    "designation_scope": "Construct (iḍāfah) designation",
+    "morphology": "Construct phrase (muḍāf + muḍāf ilayh)",
+    "syntax": "Badal / Apposition (nominative)",
+    "immediate_context": "Creation / Sovereignty",
+    "pairing": ["اللَّهُ"],
+    "observational_notes": "Construct apposition following exalted proper noun subject"
+  },
+  {
+    "event_id": "DD-0131",
+    "verse": "7:180",
+    "arabic_clause": "وَلِلَّهِ الأَسْمَاءُ الْحُسْنَىٰ فَادْعُوهُ بِهَا",
+    "designation": "لِلَّهِ",
+    "designation_scope": "Single lexical item",
+    "morphology": "Proper noun with preposition li-",
+    "syntax": "Fronted predicate (khabar muqaddam, genitive with li-)",
+    "immediate_context": "Praise / Designation meta-clause",
+    "pairing": ["الأَسْمَاءُ الْحُسْنَىٰ"],
+    "observational_notes": "Explicit meta-linguistic clause establishing divine designations to Allāh"
+  },
+  {
+    "event_id": "DD-0132",
+    "verse": "7:180",
+    "arabic_clause": "وَلِلَّهِ الأَسْمَاءُ الْحُسْنَىٰ",
+    "designation": "الأَسْمَاءُ الْحُسْنَىٰ",
+    "designation_scope": "Multi-word designation",
+    "morphology": "Plural noun + superlative adjective (al-fufʿlā)",
+    "syntax": "Delayed subject (mubtadaʾ muʾakhkhar)",
+    "immediate_context": "Praise / Designation meta-clause",
+    "pairing": ["لِلَّهِ"],
+    "observational_notes": "Corpus meta-reference to the superlative designations (al-asmāʾu al-ḥusnā)"
+  }
+]
