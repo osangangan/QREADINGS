@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Any, Callable
 
+from .memory import Memory
 from .model import ModelAdapter
 from .protocol import build_stage_prompt, normalise_stage_output, parse_structured_response
 from .state import Hypothesis, InvestigationState, Stage, Status
@@ -14,25 +15,23 @@ StageHandler = Callable[[InvestigationState], dict[str, Any]]
 
 
 class ReconstructionEngine:
-    """Small, model-agnostic controller for QREADINGS investigations.
+    """Small, model-agnostic controller for QREADINGS investigations."""
 
-    The engine owns process state.  An LLM, parser, corpus tool, or other module
-    can be attached through stage handlers without changing the state model.
-    """
-
-    def __init__(self) -> None:
+    def __init__(self, memory: Memory | None = None) -> None:
         self.handlers: dict[Stage, StageHandler] = {}
         self.model: ModelAdapter | None = None
+        self.memory = memory
 
     def register(self, stage: Stage, handler: StageHandler) -> None:
         self.handlers[stage] = handler
 
     def attach_model(self, model: ModelAdapter) -> None:
-        """Use a language model for stages that do not have specialist handlers."""
         self.model = model
 
+    def attach_memory(self, memory: Memory) -> None:
+        self.memory = memory
+
     def register_model_pipeline(self) -> None:
-        """Register the model as the fallback for every unhandled stage."""
         if self.model is None:
             raise RuntimeError("Attach a model before registering the model pipeline.")
         for stage in Stage:
@@ -52,6 +51,16 @@ class ReconstructionEngine:
         state.outputs[state.stage.value] = output
         state.record("stage_completed", output=output)
         state.status = Status.RUNNING
+
+        if self.memory is not None:
+            self.memory.save_state(
+                state.investigation_id,
+                state.input_text,
+                self.snapshot(state),
+            )
+            for hypothesis in state.hypotheses:
+                self.memory.add_hypothesis(state.investigation_id, hypothesis)
+
         state.advance()
         return state
 
@@ -68,7 +77,12 @@ class ReconstructionEngine:
         if self.model is None:
             return self._default_handler(state)
 
-        prompt = build_stage_prompt(state)
+        memory_context = (
+            self.memory.retrieve_context(state.input_text)
+            if self.memory is not None
+            else {"concepts": [], "relations": []}
+        )
+        prompt = build_stage_prompt(state, memory_context=memory_context)
         raw = self.model.generate(prompt)
         result = parse_structured_response(raw)
         output = normalise_stage_output(state.stage, result)
@@ -93,7 +107,6 @@ class ReconstructionEngine:
 
     @staticmethod
     def _default_handler(state: InvestigationState) -> dict[str, Any]:
-        """Return an explicit placeholder rather than inventing analysis."""
         return {
             "implemented": False,
             "input": state.input_text,
