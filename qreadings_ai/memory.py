@@ -79,6 +79,23 @@ class Memory:
                 UNIQUE(subject_id, predicate, object_id)
             );
 
+            CREATE TABLE IF NOT EXISTS reconstruction_versions (
+                entry_id TEXT PRIMARY KEY,
+                entry_type TEXT NOT NULL,
+                ordinal INTEGER NOT NULL,
+                day_number INTEGER,
+                title TEXT NOT NULL,
+                reference TEXT,
+                trajectory_key TEXT,
+                translation TEXT NOT NULL,
+                word_of_day TEXT,
+                translation_note TEXT,
+                theme TEXT,
+                raw_text TEXT NOT NULL,
+                source_path TEXT NOT NULL,
+                metadata_json TEXT NOT NULL
+            );
+
             CREATE INDEX IF NOT EXISTS idx_evidence_investigation
                 ON evidence(investigation_id);
             CREATE INDEX IF NOT EXISTS idx_hypotheses_investigation
@@ -91,6 +108,8 @@ class Memory:
                 ON concepts(name);
             CREATE INDEX IF NOT EXISTS idx_passages_type
                 ON evidence_passages(evidence_type);
+            CREATE INDEX IF NOT EXISTS idx_reconstruction_trajectory
+                ON reconstruction_versions(trajectory_key);
             """
         )
         self.connection.commit()
@@ -226,6 +245,78 @@ class Memory:
         self.connection.commit()
         return passage_id
 
+    def add_reconstruction_version(self, version: Any) -> None:
+        """Persist a parsed longitudinal reconstruction without judging it."""
+        self.connection.execute(
+            """
+            INSERT INTO reconstruction_versions(
+                entry_id, entry_type, ordinal, day_number, title, reference,
+                trajectory_key, translation, word_of_day, translation_note,
+                theme, raw_text, source_path, metadata_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(entry_id) DO UPDATE SET
+                entry_type=excluded.entry_type,
+                ordinal=excluded.ordinal,
+                day_number=excluded.day_number,
+                title=excluded.title,
+                reference=excluded.reference,
+                trajectory_key=excluded.trajectory_key,
+                translation=excluded.translation,
+                word_of_day=excluded.word_of_day,
+                translation_note=excluded.translation_note,
+                theme=excluded.theme,
+                raw_text=excluded.raw_text,
+                source_path=excluded.source_path,
+                metadata_json=excluded.metadata_json
+            """,
+            (
+                version.entry_id, version.entry_type, version.ordinal,
+                version.day_number, version.title, version.reference,
+                version.trajectory_key, version.translation,
+                version.word_of_day, version.translation_note, version.theme,
+                version.raw_text, version.source_path,
+                json.dumps(version.metadata, ensure_ascii=False),
+            ),
+        )
+        self.connection.commit()
+
+    def reconstruction_trajectory(self, trajectory_key: str) -> list[dict[str, Any]]:
+        """Return all known reconstructions for one Qur'anic reference in time order."""
+        rows = self.connection.execute(
+            """
+            SELECT * FROM reconstruction_versions
+            WHERE trajectory_key = ?
+            ORDER BY CASE WHEN day_number IS NULL THEN 999999 ELSE day_number END ASC,
+                     ordinal ASC
+            """,
+            (trajectory_key,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def search_reconstructions(self, query: str, limit: int = 8) -> list[dict[str, Any]]:
+        tokens = [token.strip().lower() for token in query.split() if token.strip()]
+        if not tokens:
+            return []
+        clauses = [
+            "lower(coalesce(reference, '')) LIKE ? OR "
+            "lower(translation) LIKE ? OR lower(coalesce(word_of_day, '')) LIKE ? OR "
+            "lower(coalesce(translation_note, '')) LIKE ?"
+        ] * len(tokens)
+        params: list[str] = []
+        for token in tokens:
+            pattern = f"%{token}%"
+            params.extend((pattern, pattern, pattern, pattern))
+        sql = (
+            "SELECT entry_id, entry_type, ordinal, day_number, title, reference, "
+            "trajectory_key, translation, word_of_day, translation_note, theme, source_path "
+            "FROM reconstruction_versions WHERE "
+            + " OR ".join(clauses)
+            + " ORDER BY CASE WHEN day_number IS NULL THEN 999999 ELSE day_number END DESC, ordinal DESC LIMIT ?"
+        )
+        rows = self.connection.execute(sql, [*params, limit]).fetchall()
+        return [dict(row) for row in rows]
+
     def search_concepts(self, query: str, limit: int = 8) -> list[dict[str, Any]]:
         tokens = [token.strip().lower() for token in query.split() if token.strip()]
         if not tokens:
@@ -264,7 +355,14 @@ class Memory:
         ).fetchall()
         return [dict(row) for row in rows]
 
-    def retrieve_context(self, query: str, *, concept_limit: int = 6, evidence_limit: int = 8) -> dict[str, Any]:
+    def retrieve_context(
+        self,
+        query: str,
+        *,
+        concept_limit: int = 6,
+        evidence_limit: int = 8,
+        reconstruction_limit: int = 6,
+    ) -> dict[str, Any]:
         concepts = self.search_concepts(query, limit=concept_limit)
         relations: list[dict[str, Any]] = []
         seen: set[tuple[str, str, str]] = set()
@@ -275,7 +373,13 @@ class Memory:
                     seen.add(key)
                     relations.append(relation)
         evidence = self.retriever.search(query, limit=evidence_limit)
-        return {"concepts": concepts, "relations": relations, "evidence": evidence}
+        reconstructions = self.search_reconstructions(query, limit=reconstruction_limit)
+        return {
+            "concepts": concepts,
+            "relations": relations,
+            "evidence": evidence,
+            "reconstructions": reconstructions,
+        }
 
     def close(self) -> None:
         self.connection.close()
