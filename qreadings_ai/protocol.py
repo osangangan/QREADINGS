@@ -12,12 +12,16 @@ SYSTEM_RULES = """You are a component inside the QREADINGS Reconstruction Engine
 Do not treat your first plausible interpretation as established fact.
 Separate observation from inference.
 Preserve ambiguity where evidence does not resolve it.
+Use retrieved memory as supporting context, not unquestionable authority.
 Return structured JSON only.
 """
 
 
-def build_stage_prompt(state: InvestigationState) -> str:
-    """Build a compact prompt from the current state rather than the full history."""
+def build_stage_prompt(
+    state: InvestigationState,
+    memory_context: dict[str, Any] | None = None,
+) -> str:
+    """Build a compact prompt from current state and bounded retrieved memory."""
     relevant_output = state.outputs.get(state.stage.value, {})
     previous = {
         key: value
@@ -49,6 +53,7 @@ def build_stage_prompt(state: InvestigationState) -> str:
             }
             for item in state.hypotheses
         ],
+        "retrieved_memory": memory_context or {"concepts": [], "relations": []},
     }
 
     return (
