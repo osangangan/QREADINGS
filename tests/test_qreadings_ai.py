@@ -1,4 +1,6 @@
-from qreadings_ai import ReconstructionEngine
+import json
+
+from qreadings_ai import MockModel, QReadingsAgent, ReconstructionEngine
 from qreadings_ai.state import PIPELINE, Stage, Status
 
 
@@ -29,3 +31,38 @@ def test_backtracking_is_explicit():
     assert state.stage is Stage.GRAMMAR
     assert state.status is Status.BACKTRACKING
     assert state.history[-1]["event"] == "backtrack"
+
+
+def test_model_pipeline_consumes_structured_output():
+    response = json.dumps({
+        "observations": ["observed pattern"],
+        "inferences": ["candidate relation"],
+        "uncertainties": ["meaning remains unresolved"],
+        "evidence_requests": ["find another occurrence"],
+        "hypotheses": [
+            {"claim": "candidate A", "confidence": 0.7, "status": "provisional"}
+        ],
+    })
+    agent = QReadingsAgent(MockModel(response=response))
+    result = agent.investigate("test input", max_steps=1)
+
+    assert result["stage"] == Stage.GRAMMAR.value
+    assert result["outputs"][Stage.MORPHOLOGY.value]["observations"] == [
+        "observed pattern"
+    ]
+    assert result["uncertainties"] == ["meaning remains unresolved"]
+    assert result["hypotheses"][0]["claim"] == "candidate A"
+
+
+def test_model_response_must_be_json():
+    engine = ReconstructionEngine()
+    engine.attach_model(MockModel(response="not json"))
+    engine.register_model_pipeline()
+    state = engine.start("test input")
+
+    try:
+        engine.step(state)
+    except ValueError as exc:
+        assert "valid JSON" in str(exc)
+    else:
+        raise AssertionError("Expected invalid model output to fail closed")
