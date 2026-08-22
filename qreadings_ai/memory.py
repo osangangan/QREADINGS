@@ -1,8 +1,7 @@
 """Lightweight structured memory and retrieval for QREADINGS.
 
 The first implementation deliberately uses SQLite only. Retrieval combines
-lexical matching with explicit graph relations so the system does not need a
-large vector database to maintain useful state.
+lexical matching with explicit graph relations and provenance-aware evidence.
 """
 
 from __future__ import annotations
@@ -11,9 +10,10 @@ import json
 import sqlite3
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 from uuid import uuid4
 
+from .retrieval import EvidenceRetriever
 from .state import Evidence, Hypothesis
 
 
@@ -23,6 +23,7 @@ class Memory:
         self.connection = sqlite3.connect(self.path)
         self.connection.row_factory = sqlite3.Row
         self._initialise()
+        self.retriever = EvidenceRetriever(self.connection)
 
     def _initialise(self) -> None:
         self.connection.executescript(
@@ -48,6 +49,15 @@ class Memory:
                 content TEXT NOT NULL,
                 strength REAL NOT NULL,
                 payload_json TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS evidence_passages (
+                id TEXT PRIMARY KEY,
+                source_path TEXT NOT NULL,
+                section TEXT NOT NULL,
+                evidence_type TEXT NOT NULL,
+                content TEXT NOT NULL,
+                metadata_json TEXT NOT NULL
             );
 
             CREATE TABLE IF NOT EXISTS hypotheses (
@@ -79,6 +89,8 @@ class Memory:
                 ON relations(object_id);
             CREATE INDEX IF NOT EXISTS idx_concepts_name
                 ON concepts(name);
+            CREATE INDEX IF NOT EXISTS idx_passages_type
+                ON evidence_passages(evidence_type);
             """
         )
         self.connection.commit()
@@ -146,12 +158,8 @@ class Memory:
                 payload_json=excluded.payload_json
             """,
             (
-                str(uuid4()),
-                subject_id,
-                predicate,
-                object_id,
-                max(0.0, weight),
-                json.dumps(payload or {}, ensure_ascii=False),
+                str(uuid4()), subject_id, predicate, object_id,
+                max(0.0, weight), json.dumps(payload or {}, ensure_ascii=False),
             ),
         )
         self.connection.commit()
@@ -162,16 +170,11 @@ class Memory:
             INSERT INTO evidence(id, investigation_id, source, content, strength, payload_json)
             VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
-                source=excluded.source,
-                content=excluded.content,
-                strength=excluded.strength,
-                payload_json=excluded.payload_json
+                source=excluded.source, content=excluded.content,
+                strength=excluded.strength, payload_json=excluded.payload_json
             """,
             (
-                evidence.id,
-                investigation_id,
-                evidence.source,
-                evidence.content,
+                evidence.id, investigation_id, evidence.source, evidence.content,
                 max(0.0, min(1.0, evidence.strength)),
                 json.dumps(asdict(evidence), ensure_ascii=False),
             ),
@@ -184,28 +187,46 @@ class Memory:
             INSERT INTO hypotheses(id, investigation_id, claim, confidence, status, payload_json)
             VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
-                claim=excluded.claim,
-                confidence=excluded.confidence,
-                status=excluded.status,
-                payload_json=excluded.payload_json
+                claim=excluded.claim, confidence=excluded.confidence,
+                status=excluded.status, payload_json=excluded.payload_json
             """,
             (
-                hypothesis.id,
-                investigation_id,
-                hypothesis.claim,
-                max(0.0, min(1.0, hypothesis.confidence)),
-                hypothesis.status,
+                hypothesis.id, investigation_id, hypothesis.claim,
+                max(0.0, min(1.0, hypothesis.confidence)), hypothesis.status,
                 json.dumps(asdict(hypothesis), ensure_ascii=False),
             ),
         )
         self.connection.commit()
 
-    def search_concepts(self, query: str, limit: int = 8) -> list[dict[str, Any]]:
-        """Cheap lexical retrieval using SQLite FTS-like LIKE matching.
+    def add_passage(
+        self,
+        source_path: str,
+        section: str,
+        content: str,
+        *,
+        evidence_type: str = "source",
+        metadata: dict[str, Any] | None = None,
+        passage_id: str | None = None,
+    ) -> str:
+        passage_id = passage_id or str(uuid4())
+        self.connection.execute(
+            """
+            INSERT INTO evidence_passages(id, source_path, section, evidence_type, content, metadata_json)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                source_path=excluded.source_path, section=excluded.section,
+                evidence_type=excluded.evidence_type, content=excluded.content,
+                metadata_json=excluded.metadata_json
+            """,
+            (
+                passage_id, source_path, section, evidence_type, content,
+                json.dumps(metadata or {}, ensure_ascii=False),
+            ),
+        )
+        self.connection.commit()
+        return passage_id
 
-        This intentionally avoids embeddings at this stage. A later adapter can
-        add vector retrieval without changing callers.
-        """
+    def search_concepts(self, query: str, limit: int = 8) -> list[dict[str, Any]]:
         tokens = [token.strip().lower() for token in query.split() if token.strip()]
         if not tokens:
             return []
@@ -215,20 +236,17 @@ class Memory:
             pattern = f"%{token}%"
             params.extend((pattern, pattern))
         sql = (
-            "SELECT id, name, description, confidence, payload_json "
-            "FROM concepts WHERE " + " OR ".join(clauses) + " "
-            "ORDER BY confidence DESC LIMIT ?"
+            "SELECT id, name, description, confidence, payload_json FROM concepts WHERE "
+            + " OR ".join(clauses)
+            + " ORDER BY confidence DESC LIMIT ?"
         )
         rows = self.connection.execute(sql, [*params, limit]).fetchall()
         return [
             {
-                "id": row["id"],
-                "name": row["name"],
-                "description": row["description"],
-                "confidence": row["confidence"],
-                "payload": json.loads(row["payload_json"]),
+                "id": r["id"], "name": r["name"], "description": r["description"],
+                "confidence": r["confidence"], "payload": json.loads(r["payload_json"]),
             }
-            for row in rows
+            for r in rows
         ]
 
     def related_concepts(self, concept_id: str, limit: int = 12) -> list[dict[str, Any]]:
@@ -246,21 +264,18 @@ class Memory:
         ).fetchall()
         return [dict(row) for row in rows]
 
-    def retrieve_context(self, query: str, *, concept_limit: int = 6) -> dict[str, Any]:
+    def retrieve_context(self, query: str, *, concept_limit: int = 6, evidence_limit: int = 8) -> dict[str, Any]:
         concepts = self.search_concepts(query, limit=concept_limit)
         relations: list[dict[str, Any]] = []
         seen: set[tuple[str, str, str]] = set()
         for concept in concepts:
             for relation in self.related_concepts(concept["id"]):
-                key = (
-                    relation["subject_id"],
-                    relation["predicate"],
-                    relation["object_id"],
-                )
+                key = (relation["subject_id"], relation["predicate"], relation["object_id"])
                 if key not in seen:
                     seen.add(key)
                     relations.append(relation)
-        return {"concepts": concepts, "relations": relations}
+        evidence = self.retriever.search(query, limit=evidence_limit)
+        return {"concepts": concepts, "relations": relations, "evidence": evidence}
 
     def close(self) -> None:
         self.connection.close()
