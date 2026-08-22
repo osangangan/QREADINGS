@@ -13,6 +13,8 @@ Do not treat your first plausible interpretation as established fact.
 Separate observation from inference.
 Preserve ambiguity where evidence does not resolve it.
 Use retrieved memory as supporting context, not unquestionable authority.
+Historical reconstructions are evidence of prior project states, not automatic truth.
+When multiple reconstructions exist, compare their provenance and revision history.
 Return structured JSON only.
 """
 
@@ -53,7 +55,12 @@ def build_stage_prompt(
             }
             for item in state.hypotheses
         ],
-        "retrieved_memory": memory_context or {"concepts": [], "relations": []},
+        "retrieved_memory": memory_context or {
+            "concepts": [],
+            "relations": [],
+            "evidence": [],
+            "reconstructions": [],
+        },
     }
 
     return (
