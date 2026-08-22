@@ -66,6 +66,7 @@ class Hypothesis:
 @dataclass
 class InvestigationState:
     input_text: str
+    investigation_id: str = field(default_factory=lambda: str(uuid4()))
     status: Status = Status.RUNNING
     stage: Stage = Stage.MORPHOLOGY
     outputs: dict[str, Any] = field(default_factory=dict)
@@ -80,6 +81,7 @@ class InvestigationState:
             "event": event,
             "stage": self.stage.value,
             "status": self.status.value,
+            "investigation_id": self.investigation_id,
             **data,
         })
 
