@@ -13,14 +13,45 @@ def load_benchmark(path: str | Path) -> dict[str, Any]:
 
 
 
+def _normalised_context(context: dict[str, Any]) -> str:
+    return json.dumps(context, ensure_ascii=False).lower()
+
+
+def _preservation_tokens(context: dict[str, Any]) -> set[str]:
+    """Expose structured labels alongside retrieved prose for fidelity scoring."""
+    tokens: set[str] = set()
+    for evidence in context.get("evidence", []):
+        evidence_type = str(evidence.get("evidence_type", "")).lower().strip()
+        if evidence_type:
+            tokens.add(evidence_type)
+            tokens.add(evidence_type.replace("_", " "))
+        metadata = evidence.get("metadata") or {}
+        for value in metadata.values():
+            value = str(value).lower().strip()
+            if value:
+                tokens.add(value)
+                tokens.add(value.replace("_", " "))
+    return tokens
+
+
 def evaluate_retrieval(context: dict[str, Any], task: dict[str, Any]) -> dict[str, Any]:
-    """Score only observable retrieval coverage; do not judge generated prose."""
-    corpus = json.dumps(context, ensure_ascii=False).lower()
+    """Score observable retrieval coverage and preservation metadata.
+
+    Required items are matched against the retrieved context. Preservation items
+    may be satisfied either by retrieved text or by structured provenance/type
+    metadata, which avoids penalising retrieval for labels that are intentionally
+    represented structurally rather than repeated verbatim in prose.
+    """
+    corpus = _normalised_context(context)
+    structured = _preservation_tokens(context)
     required = [str(item).lower() for item in task.get("must_retrieve", [])]
     preserved = [str(item).lower() for item in task.get("must_preserve", [])]
 
     required_hits = [item for item in required if item in corpus]
-    preserved_hits = [item for item in preserved if item in corpus]
+    preserved_hits = [
+        item for item in preserved
+        if item in corpus or item in structured
+    ]
 
     required_score = len(required_hits) / len(required) if required else 1.0
     preserved_score = len(preserved_hits) / len(preserved) if preserved else 1.0
