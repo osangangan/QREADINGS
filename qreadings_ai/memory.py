@@ -247,7 +247,6 @@ class Memory:
         return passage_id
 
     def add_reconstruction_version(self, version: Any) -> None:
-        """Persist a parsed longitudinal reconstruction without judging it."""
         self.connection.execute(
             """
             INSERT INTO reconstruction_versions(
@@ -396,7 +395,7 @@ class Memory:
         *,
         concept_limit: int = 6,
         evidence_limit: int = 12,
-        reconstruction_limit: int = 8,
+        reconstruction_limit: int = 10,
     ) -> dict[str, Any]:
         concepts = self.search_concepts(query, limit=concept_limit)
         relations: list[dict[str, Any]] = []
