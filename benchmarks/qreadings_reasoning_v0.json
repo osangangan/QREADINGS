@@ -1,0 +1,76 @@
+{
+  "version": "0.1",
+  "purpose": "Evaluate retrieval and reconstruction fidelity before local-model training.",
+  "source_basis": [
+    "specification/Specification.md",
+    "research_log/INV0008_conceptual_operations_as_primitive_processes.md",
+    "corpora/divine_designations/divine_designations_stage1_catalogue.json",
+    "365 Days of Q.txt"
+  ],
+  "tasks": [
+    {
+      "id": "method-001",
+      "type": "methodology_status",
+      "query": "What is the current methodological status of the conceptual-operations hypothesis?",
+      "must_retrieve": ["INV0008", "Hypothesis A", "Hypothesis B", "Current Decision", "Future Validation"],
+      "must_preserve": ["provisional", "evidence", "revision"],
+      "expected_behavior": "Distinguish the hypothesis from an adopted specification rule."
+    },
+    {
+      "id": "trajectory-001",
+      "type": "trajectory_reconstruction",
+      "query": "What historical QREADINGS material exists for 19:24, and how should it be represented?",
+      "must_retrieve": ["QReading Day 47", "19:24", "Possible Readings"],
+      "must_preserve": ["historical reconstruction", "possible reading", "provenance"],
+      "expected_behavior": "Treat multiple readings as versions/alternatives, not as a single merged answer."
+    },
+    {
+      "id": "trajectory-002",
+      "type": "translation_note",
+      "query": "Why was ayat translated as signs in the early QReading history?",
+      "must_retrieve": ["QReading Day 5", "āyāt", "signs", "root sense"],
+      "must_preserve": ["translation note", "reasoning"],
+      "expected_behavior": "Report the documented rationale without upgrading it into an external linguistic fact."
+    },
+    {
+      "id": "trajectory-003",
+      "type": "translation_note",
+      "query": "Why was nafs rendered as essence in the QReading Day 5 history?",
+      "must_retrieve": ["QReading Day 5", "nafs", "essence"],
+      "must_preserve": ["alternative", "reason for choice"],
+      "expected_behavior": "Preserve the document's stated motivation and acknowledge that other renderings are mentioned."
+    },
+    {
+      "id": "trajectory-004",
+      "type": "theme_and_lexicon",
+      "query": "What lexical and thematic development is visible around holding firm in the QReading history?",
+      "must_retrieve": ["QReading Day 31", "QReading Day 34", "ṣabr", "ṣābirū", "holding firm"],
+      "must_preserve": ["theme", "lexical distinction", "chronology"],
+      "expected_behavior": "Connect the entries without collapsing their distinct lexical forms."
+    },
+    {
+      "id": "corpus-001",
+      "type": "explicit_corpus_relation",
+      "query": "What explicit relations connect designations in the divine-designations corpus?",
+      "must_retrieve": ["designation", "immediate_context", "pairing", "occurs_in_context", "paired_with"],
+      "must_preserve": ["explicit field", "source record"],
+      "expected_behavior": "Only assert relations directly represented in the catalogue fields."
+    },
+    {
+      "id": "retrieval-001",
+      "type": "provenance",
+      "query": "Where does the evidence for the primitive conceptual-operation hypothesis come from?",
+      "must_retrieve": ["research_log/INV0008_conceptual_operations_as_primitive_processes.md"],
+      "must_preserve": ["research log", "preliminary evidence", "competing hypotheses"],
+      "expected_behavior": "Cite provenance and separate project evidence from model inference."
+    },
+    {
+      "id": "ambiguity-001",
+      "type": "uncertainty",
+      "query": "When QREADINGS has more than one plausible reconstruction, what should the system do?",
+      "must_retrieve": ["preserve ambiguity", "competing evidence", "falsifiable", "provisional"],
+      "must_preserve": ["uncertainty", "revision"],
+      "expected_behavior": "Do not force a single answer when the source methodology leaves alternatives open."
+    }
+  ]
+}
