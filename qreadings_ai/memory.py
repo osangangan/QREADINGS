@@ -1,12 +1,9 @@
-"""Lightweight structured memory and retrieval for QREADINGS.
-
-The first implementation deliberately uses SQLite only. Retrieval combines
-lexical matching with explicit graph relations and provenance-aware evidence.
-"""
+"""Lightweight structured memory and retrieval for QREADINGS."""
 
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from dataclasses import asdict
 from pathlib import Path
@@ -15,6 +12,10 @@ from uuid import uuid4
 
 from .retrieval import EvidenceRetriever
 from .state import Evidence, Hypothesis
+
+
+REFERENCE_RE = re.compile(r"\b(\d{1,3}):(\d{1,3}(?:[–-]\d{1,3})?)\b")
+DAY_RE = re.compile(r"\bqreading\s+day\s+(\d+)\b", re.IGNORECASE)
 
 
 class Memory:
@@ -282,7 +283,6 @@ class Memory:
         self.connection.commit()
 
     def reconstruction_trajectory(self, trajectory_key: str) -> list[dict[str, Any]]:
-        """Return all known reconstructions for one Qur'anic reference in time order."""
         rows = self.connection.execute(
             """
             SELECT * FROM reconstruction_versions
@@ -295,24 +295,59 @@ class Memory:
         return [dict(row) for row in rows]
 
     def search_reconstructions(self, query: str, limit: int = 8) -> list[dict[str, Any]]:
+        references = [m.group(0).replace("-", "–") for m in REFERENCE_RE.finditer(query)]
+        days = [int(m.group(1)) for m in DAY_RE.finditer(query)]
+
+        if references:
+            placeholders = ",".join("?" for _ in references)
+            rows = self.connection.execute(
+                f"""
+                SELECT entry_id, entry_type, ordinal, day_number, title, reference,
+                       trajectory_key, translation, word_of_day, translation_note, theme, source_path
+                FROM reconstruction_versions
+                WHERE replace(reference, '-', '–') IN ({placeholders})
+                ORDER BY CASE WHEN day_number IS NULL THEN 999999 ELSE day_number END DESC,
+                         ordinal DESC
+                LIMIT ?
+                """,
+                [*references, limit],
+            ).fetchall()
+            if rows:
+                return [dict(row) for row in rows]
+
+        if days:
+            placeholders = ",".join("?" for _ in days)
+            rows = self.connection.execute(
+                f"""
+                SELECT entry_id, entry_type, ordinal, day_number, title, reference,
+                       trajectory_key, translation, word_of_day, translation_note, theme, source_path
+                FROM reconstruction_versions
+                WHERE day_number IN ({placeholders})
+                ORDER BY ordinal DESC
+                LIMIT ?
+                """,
+                [*days, limit],
+            ).fetchall()
+            if rows:
+                return [dict(row) for row in rows]
+
         tokens = [token.strip().lower() for token in query.split() if token.strip()]
         if not tokens:
             return []
         clauses = [
-            "lower(coalesce(reference, '')) LIKE ? OR "
-            "lower(translation) LIKE ? OR lower(coalesce(word_of_day, '')) LIKE ? OR "
-            "lower(coalesce(translation_note, '')) LIKE ?"
+            "lower(coalesce(reference, '')) LIKE ? OR lower(translation) LIKE ? OR "
+            "lower(coalesce(word_of_day, '')) LIKE ? OR lower(coalesce(translation_note, '')) LIKE ? OR "
+            "lower(coalesce(theme, '')) LIKE ?"
         ] * len(tokens)
         params: list[str] = []
         for token in tokens:
             pattern = f"%{token}%"
-            params.extend((pattern, pattern, pattern, pattern))
+            params.extend((pattern, pattern, pattern, pattern, pattern))
         sql = (
-            "SELECT entry_id, entry_type, ordinal, day_number, title, reference, "
-            "trajectory_key, translation, word_of_day, translation_note, theme, source_path "
-            "FROM reconstruction_versions WHERE "
-            + " OR ".join(clauses)
-            + " ORDER BY CASE WHEN day_number IS NULL THEN 999999 ELSE day_number END DESC, ordinal DESC LIMIT ?"
+            "SELECT entry_id, entry_type, ordinal, day_number, title, reference, trajectory_key, "
+            "translation, word_of_day, translation_note, theme, source_path "
+            "FROM reconstruction_versions WHERE " + " OR ".join(clauses) + " "
+            "ORDER BY CASE WHEN day_number IS NULL THEN 999999 ELSE day_number END DESC, ordinal DESC LIMIT ?"
         )
         rows = self.connection.execute(sql, [*params, limit]).fetchall()
         return [dict(row) for row in rows]
@@ -360,8 +395,8 @@ class Memory:
         query: str,
         *,
         concept_limit: int = 6,
-        evidence_limit: int = 8,
-        reconstruction_limit: int = 6,
+        evidence_limit: int = 12,
+        reconstruction_limit: int = 8,
     ) -> dict[str, Any]:
         concepts = self.search_concepts(query, limit=concept_limit)
         relations: list[dict[str, Any]] = []
