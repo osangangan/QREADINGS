@@ -17,6 +17,7 @@ from typing import Any
 
 from .memory import Memory
 from .state import Evidence
+from .state_extraction import passage_metadata, section_evidence_type
 from .trajectory import parse_translation_history
 
 INCLUDE_DIRS = (
@@ -53,6 +54,11 @@ def chunk_markdown(text: str, max_chars: int = 6000) -> list[str]:
     return chunks
 
 
+def _section_label(chunk: str, index: int) -> str:
+    match = re.match(r"^#{1,6}\s+(.+?)\s*(?:\n|$)", chunk)
+    return match.group(1).strip() if match else f"chunk:{index}"
+
+
 def ingest_markdown(path: Path, memory: Memory, root: Path) -> int:
     text = path.read_text(encoding="utf-8")
     source = path.relative_to(root).as_posix()
@@ -65,12 +71,15 @@ def ingest_markdown(path: Path, memory: Memory, root: Path) -> int:
             strength=1.0,
         )
         memory.add_evidence(f"corpus:{source}", evidence)
+        section = _section_label(chunk, index)
+        metadata = passage_metadata(section, chunk)
+        metadata["chunk_index"] = str(index)
         memory.add_passage(
             source,
-            f"chunk:{index}",
+            section,
             chunk,
-            evidence_type="source",
-            metadata={"chunk_index": str(index)},
+            evidence_type=section_evidence_type(section, chunk),
+            metadata=metadata,
             passage_id=stable_id("passage", source, str(index)),
         )
 
@@ -101,7 +110,7 @@ def _record_evidence(record: dict[str, Any], source: str, index: int, memory: Me
         f"record:{index}",
         content,
         evidence_type="corpus_record",
-        metadata={"record_index": str(index)},
+        metadata={"record_index": str(index), "explicit_fields": ",".join(record.keys())},
         passage_id=stable_id("passage", source, str(index)),
     )
 
@@ -180,20 +189,50 @@ def ingest_translation_history(
     versions = parse_translation_history(text, source_path=source)
     for version in versions:
         memory.add_reconstruction_version(version)
+        base_metadata = {
+            "entry_id": version.entry_id,
+            "entry_type": version.entry_type,
+            "day_number": str(version.day_number) if version.day_number is not None else "",
+            "reference": version.reference or "",
+            "trajectory_key": version.trajectory_key or "",
+            "chronology": "day_number" if version.day_number is not None else "ordinal",
+            "lexical_distinction": "word_of_day" if version.word_of_day else "",
+            "has_translation_note": bool(version.translation_note),
+            "has_theme": bool(version.theme),
+        }
         memory.add_passage(
             source,
             version.title,
             version.raw_text,
             evidence_type="reconstruction_version",
-            metadata={
-                "entry_id": version.entry_id,
-                "entry_type": version.entry_type,
-                "day_number": str(version.day_number) if version.day_number is not None else "",
-                "reference": version.reference or "",
-                "trajectory_key": version.trajectory_key or "",
-            },
+            metadata=base_metadata,
             passage_id=stable_id("translation-history", version.entry_id),
         )
+        if version.translation_note:
+            memory.add_passage(
+                source,
+                f"{version.title} translation note",
+                version.translation_note,
+                evidence_type="translation_note",
+                metadata={
+                    **base_metadata,
+                    "reasoning": True,
+                    "reason_for_choice": True,
+                },
+                passage_id=stable_id("translation-note", version.entry_id),
+            )
+        if version.word_of_day:
+            memory.add_passage(
+                source,
+                f"{version.title} lexical note",
+                version.word_of_day,
+                evidence_type="lexical_note",
+                metadata={
+                    **base_metadata,
+                    "lexical_distinction": True,
+                },
+                passage_id=stable_id("lexical-note", version.entry_id),
+            )
     return len(versions)
 
 
