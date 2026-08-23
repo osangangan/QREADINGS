@@ -7,6 +7,7 @@ text, methodological rules, hypotheses, and secondary evidence.
 
 from __future__ import annotations
 
+import json
 import re
 import sqlite3
 from typing import Any
@@ -39,6 +40,7 @@ class EvidenceRetriever:
         for row in rows:
             if source_types and row["evidence_type"] not in source_types:
                 continue
+            metadata = json.loads(row["metadata_json"] or "{}")
             haystack = f"{row['section']} {row['content']}".lower()
             hits = sum(1 for token in tokens if token in haystack)
             if hits == 0:
@@ -51,7 +53,7 @@ class EvidenceRetriever:
                     "section": row["section"],
                     "evidence_type": row["evidence_type"],
                     "content": row["content"],
-                    "metadata_json": row["metadata_json"],
+                    "metadata": metadata,
                     "score": round(score, 4),
                 }
             )
