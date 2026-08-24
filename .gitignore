@@ -1,3 +1,5 @@
 365 Days of Q.txt
 qreadings_ai.db
 qreadings_ai/__pycache__/
+model_eval_results.json
+models/
